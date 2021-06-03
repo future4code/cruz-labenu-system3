@@ -103,6 +103,81 @@ app.post ("/students/insert", async (req: Request, res: Response) => {
    }
 })
 
+app.put ("/students/edit/class", async (req: Request, res: Response) => {
+   try{
+
+      const { id, novaTurma } = req.body
+
+      if(!novaTurma || !id){
+         throw new Error("Forneça Corretamente novaTurma, id")
+      }
+
+      const result = await connection.raw(`UPDATE STUDENTS 
+      SET class_id = ${novaTurma}
+      WHERE id = ${id}`)
+
+      const result2 = await connection.raw(`SELECT STUDENTS.nome, STUDENTS.class_id FROM STUDENTS 
+      JOIN CLASS ON STUDENTS.class_id = CLASS.id 
+      WHERE STUDENTS.id=${id}`) // opção de código feita para o treinamento do uso do JOIN
+      
+      res
+      .status(200)
+      .send(result2[0][0])
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status: 0 })
+   }
+});
+
+app.put ("/teachers/edit/class", async (req: Request, res: Response) => {
+   try{
+
+      const { id, novaTurma } = req.body
+
+      if (!id || !novaTurma){
+         throw new Error("Forneça Corretamente novaTurma, id")
+      }
+
+      const result = await connection.raw(`UPDATE TEACHERS
+      SET turma = ${novaTurma}
+      WHERE id = ${id}`)
+
+      res
+      .status(200)
+      .send(result[0])
+
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status:0 })
+   }
+});
+
+app.get("/students/:id", async (req: Request, res: Response) => {
+
+   try{
+
+      const id = req.params.id
+
+      const result  = await connection.raw(`SELECT nome, FLOOR(DATEDIFF(CURDATE(),data_de_nascimento) / 365.25) AS idade
+      FROM STUDENTS 
+      WHERE id = ${id}`)
+
+      res
+      .status(200)
+      .send(result[0])
+
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status:0})
+   }
+})
+
 
 const server = app.listen(process.env.PORT || 3003, () => {
    if (server) {
