@@ -4,6 +4,7 @@ import cors from "cors"
 import dotenv from "dotenv"
 import { AddressInfo } from "net"
 import { convertDate } from "./function"
+import { send } from "process"
 
 dotenv.config()
 
@@ -103,7 +104,7 @@ app.post ("/students/insert", async (req: Request, res: Response) => {
    }
 })
 
-app.put ("/students/edit/class", async (req: Request, res: Response) => {
+app.put ("/student/edit/class", async (req: Request, res: Response) => {
    try{
 
       const { id, novaTurma } = req.body
@@ -122,7 +123,7 @@ app.put ("/students/edit/class", async (req: Request, res: Response) => {
       
       res
       .status(200)
-      .send(result2[0][0])
+      .send({ result2: [0][0], status:1 })
 
    }catch(err){
       res
@@ -131,7 +132,7 @@ app.put ("/students/edit/class", async (req: Request, res: Response) => {
    }
 });
 
-app.put ("/teachers/edit/class", async (req: Request, res: Response) => {
+app.put ("/teacher/edit/class", async (req: Request, res: Response) => {
    try{
 
       const { id, novaTurma } = req.body
@@ -146,7 +147,7 @@ app.put ("/teachers/edit/class", async (req: Request, res: Response) => {
 
       res
       .status(200)
-      .send(result[0])
+      .send({result:[0], status:1 })
 
 
    }catch(err){
@@ -156,20 +157,24 @@ app.put ("/teachers/edit/class", async (req: Request, res: Response) => {
    }
 });
 
-app.get("/students/:id", async (req: Request, res: Response) => {
+app.get("/student/:id", async (req: Request, res: Response) => {
 
    try{
 
       const id = req.params.id
 
-      const result  = await connection.raw(`SELECT nome, FLOOR(DATEDIFF(CURDATE(),data_de_nascimento) / 365.25) AS idade
-      FROM STUDENTS 
-      WHERE id = ${id}`)
+      const result  = await connection.raw(`SELECT s.nome, s.email, FLOOR(DATEDIFF(CURDATE(),s.data_de_nascimento) / 365.25) AS idade, c.nome AS turma
+      FROM STUDENTS s JOIN CLASS c ON s.class_id = c.id 
+      WHERE s.id = ${id}`)
+
+      const result2 = await connection.raw(`SELECT hobby FROM HOBBY 
+      WHERE student_id = ${id}`)
+
+      result[0][0].hobbies = result2[0]
 
       res
       .status(200)
-      .send(result[0])
-
+      .send({ result:[0][0], status: 1})
 
    }catch(err){
       res
@@ -178,6 +183,139 @@ app.get("/students/:id", async (req: Request, res: Response) => {
    }
 })
 
+app.get("/students/:class", async (req: Request, res: Response) => {
+
+   try{
+
+      const class_id = req.params.class
+
+      const result = await connection.raw(`SELECT nome, class_id
+      FROM STUDENTS
+      WHERE class_id = ${class_id}`)
+
+      res
+      .status(200)
+      .send({result:[0], status: 1})
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status:0 })
+   }
+});
+
+app.get("/teachers/:class", async (req: Request, res: Response) =>{
+
+   try{
+
+      const class_id = req.params.class
+
+      const result = await connection.raw(`SELECT nome, turma 
+      FROM TEACHERS
+      WHERE turma = ${class_id}`)
+
+      res
+      .status(200)
+      .send({ result:[0], status: 1 })
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status:0 })
+   }
+});
+
+app.put ("/class/edit/:id/novoModulo/:modulo", async(req: Request, res: Response) => {
+
+   try{
+
+      const {id, modulo} = req.params
+
+      const result = await connection.raw(`UPDATE CLASS
+      SET modulo = ${modulo}
+      WHERE id = ${id}`)
+
+      res
+      .status(200)
+      .send({ result:[0], status: 1 })
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status: 0 })
+   }
+});
+
+app.delete("/student/:id", async(req: Request, res: Response) => {
+   try{
+
+      const id = req.params.id
+
+      const result = await connection.raw(`DELETE FROM STUDENTS
+      WHERE id = ${id}`)
+
+      if (result[0].affectedRows === 0){
+         throw new Error("ID do Estudante não encontrado")
+      }
+      res
+      .status(200)
+      .send({ message: "Estudante deletado com sucesso!", status: 1 })
+   
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status: 0 })
+   }
+});
+
+app.post ("/student/add/hobby", async(req: Request, res: Response) => {
+
+   try{
+
+      const { hobby, student_id } = req.body
+      
+      if ( !hobby || !student_id ){
+         throw new Error ("Forneça Corretamente o hobby e o student_id")
+      }
+
+      const result = await connection.raw(`INSERT INTO HOBBY (hobby, student_id) VALUES(
+         "${hobby}",
+         ${student_id}
+      )`);
+
+      res
+      .status(200)
+      .send({ result:[0], status: 1})
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status: 0 })
+
+   }
+
+});
+
+app.get("/search/:hobby", async(req: Request, res: Response) =>{
+   try{
+
+      const search_hobby = req.params.hobby
+
+      const result = await connection.raw(`SELECT s.nome, h.hobby FROM HOBBY h 
+      JOIN STUDENTS s ON s.id = h.student_id
+      WHERE h.hobby LIKE "%${search_hobby}%" `)
+
+      res
+      .status(200)
+      .send({ result:[0], status: 1 })
+
+
+   }catch(err){
+      res
+      .status(400)
+      .send({ message: err.message, status: 0 })
+   }
+});
 
 const server = app.listen(process.env.PORT || 3003, () => {
    if (server) {
